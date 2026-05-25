@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 1. Сервіс бази даних PostgreSQL
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: smart_inventory_db
+    environment:
+      POSTGRES_USER: db_admin
+      POSTGRES_PASSWORD: SecretSecurePassword2026
+      POSTGRES_DB: smart_inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U db_admin -d smart_inventory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Кеш-сервер Redis (кешування & сесії)
+  redis_cache:
+    image: redis:7-alpine
+    container_name: smart_inventory_redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 3. Серверна частина (Backend API)
+  backend_api:
+    image: smartinventory/backend:latest
+    container_name: smart_inventory_backend
+    environment:
+      DATABASE_URL: postgresql://db_admin:SecretSecurePassword2026@postgres_db:5432/smart_inventory
+      REDIS_URL: redis://redis_cache:6379
+      JWT_SECRET: SuperGlobalJWTSecretKey2026
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis_cache:
+        condition: service_started
+    restart: always
+
+  # 4. Клієнтська частина (Frontend)
+  frontend_app:
+    image: smartinventory/frontend:latest
+    container_name: smart_inventory_frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl_certs:/etc/nginx/certs
+    depends_on:
+      - backend_api
+    restart: always
+
+volumes:
+  postgres_data:
+    driver: local
